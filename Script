@@ -1,0 +1,153 @@
+var contacts = await Contact.all(await ContactsContainer.all());
+
+//Subreddit(s)
+var subs = ["earthporn"]
+// artporn
+var images = [];
+//titles = []
+var imgURLArr = [];
+var gap = "all"
+var sort = "top"
+var sub = subs[Math.floor(Math.random()*subs.length)]
+var r = 0
+
+console.log(sub)
+
+const fm = FileManager.iCloud();
+var colorPath = "#ffffff";
+
+var col = colorPath;
+
+async function runJSON(af){
+  //console.log(af?af:"")
+  if(af == null){
+    console.error("No After Value Found in Subreddit Timeframe")
+    return
+  }
+
+if(!af){
+var url = `https://www.reddit.com/r/${sub}/${sort}.json?sort=${sort}&raw_json=1&limit=25${sort=="top"?`&t=${gap}`:""}`;
+}else{
+  var url = `https://www.reddit.com/r/${sub}/${sort}.json?sort=${sort}&raw_json=1&limit=25&25${sort=="top"?`&t=${gap}`:""}&after=${af}`;
+}
+//console.log(url)
+let req = new Request(url);
+
+var json = await req.loadJSON();
+
+images = []
+for(let i = 0; i < json.data.children.length; i++){
+  images.push(json.data.children[i])
+}
+
+for(let i = 0; i < images.length; i++){
+  let ch = images[i].data
+
+try{
+if(ch.removed_by_category != null || (ch.thumbnail_height == 70 && ch.thumbnail_width == 140)){
+  var iurl = 0;
+}else if(ch.url.includes(".jpg") || ch.url.includes(".png")){
+//console.log(`${i}) ${ch.title}`)
+var iurl = ch.preview.images[0].source.url.replace("&amp;","&")
+// var title = ch.title
+}else{
+  var iurl = 0;
+}
+}catch(err){
+//console.log(err)
+}
+if(iurl){
+imgURLArr.push(iurl);
+//titles.push(title);
+}
+
+}
+images = 0
+imgURLArr = [...new Set(imgURLArr)].sort(() => Math.random() - 0.5)
+
+console.log(`running ${r}\nIMGS:(${imgURLArr.length})`)
+if(imgURLArr.length < contacts.length + 5){
+  r += 1
+
+  await runJSON(json.data.after ? json.data.after : null)
+}else{
+  imgURLArr = imgURLArr.slice(0, contacts.length + 6)
+  log(`Current URLs: ${imgURLArr.length}`)
+  
+}
+
+}
+
+await runJSON(0)
+json = null
+
+var offset = 0
+
+for(let g = 0;g<contacts.length;g++){
+if(imgURLArr.length < contacts.length + 5){
+  return
+}
+
+  try{
+  let imgReq = new Request(imgURLArr[g + offset]);
+
+  var image = await imgReq.loadImage();
+  imgURLArr[g + offset] = null
+  }
+  catch(e){
+    //console.warn(e);
+    offset += 1
+    let imgReq = new Request(imgURLArr[g + offset]);
+
+  var image = await imgReq.loadImage();
+  imgURLArr[g + offset] = null
+  }
+
+
+  let crop = new DrawContext();
+  crop.opaque = true;
+  if(image.size["width"] < image.size["height"]){
+  crop.size = new Size(image.size["width"],image.size["width"]);
+crop.drawImageAtPoint(image, new Point(0, (image.size["width"]-image.size["height"])/2));
+image = null;
+  }else{
+    crop.size = new Size(image.size["height"],image.size["height"]);
+crop.drawImageAtPoint(image, new Point(-((image.size["width"] - image.size["height"])/2), 0));
+image = null
+
+  }
+  crop.setLineWidth(crop.size["height"]*0.025)
+  crop.setStrokeColor(new Color(col))
+  crop.strokeEllipse(new Rect(0, 0, crop.size["height"],crop.size["height"]))
+  
+  if(contacts[g].givenName != "Jeremy"){
+
+  let img = await crop.getImage();
+  
+  crop = null
+  let c = contacts[g]
+
+  
+      console.log(`\n${c.givenName ? c.givenName + (c.familyName ? ',' : '') : ''} ${c.familyName}\n${g+1}/${contacts.length}  ${(((g+1)/contacts.length)*100).toFixed(2)}%\noffset: ${offset}`)
+
+  contacts[g].image = img;
+  
+    
+  await Contact.update(contacts[g]);
+  contacts[g] = null
+  //console.log(`${g+1}) Contact Updated!`)
+  
+  if((g+1)%5==0 || g == (contacts.length - 1)){
+    try{
+  await Contact.persistChanges();
+  }catch(error){
+    
+  }
+//   console.log(`${g+1}) Contact Persisted!\n`)
+  }
+  
+}
+
+}
+
+Script.complete()
