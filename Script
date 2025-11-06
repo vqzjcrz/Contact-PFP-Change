@@ -2,7 +2,7 @@ var contacts = await Contact.all(await ContactsContainer.all());
 
 //Subreddit(s)
 var subs = ["earthporn"]
-// artporn
+
 var images = [];
 //titles = []
 var imgURLArr = [];
